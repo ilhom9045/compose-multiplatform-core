@@ -489,6 +489,12 @@ includeProject(":internal-testutils-xctest", "testutils/testutils-xctest")
 // Workaround for b/203825166
 includeBuild("placeholder-fork")
 
+// Local composite build. The clone is not tracked here, so guard on its presence
+// to keep the build working for anyone who hasn't cloned it.
+if (file("quickjs-kt/settings.gradle.kts").exists()) {
+    includeBuild("quickjs-kt")
+}
+
 includeProject(":mpp")
 
 // stubs needed for android source sets (Android currently doesn't work in the fork)
