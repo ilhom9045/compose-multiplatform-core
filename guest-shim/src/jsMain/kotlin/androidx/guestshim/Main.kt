@@ -17,6 +17,8 @@
 package androidx.guestshim
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 
 /**
  * Screens the harness can ask for by name. Task 5 adds the real one.
@@ -28,6 +30,11 @@ import androidx.compose.runtime.Composable
 private val screens: Map<String, @Composable () -> Unit> = mapOf(
     "empty" to {},
     "probe" to { emitNode(nodeTypeId = NodeType.Box) {} },
+    "color" to {
+        emitNode(nodeTypeId = NodeType.Box) {
+            set(Unit) { sendInt(PropKey.BackgroundColor, Color.Red.toArgb()) }
+        }
+    },
 )
 
 fun main() {

@@ -38,6 +38,11 @@ kotlin {
         // this module, and that plugin refuses to run without compose-runtime on the classpath.
         commonMain.dependencies {
             implementation(project(":compose:runtime:runtime"))
+            // Needed by the verbatim upstream copies under androidx/compose/, not by the guest
+            // itself: annotations are erased and emit no code, and colorspace/Connector.kt caches
+            // its connectors in an IntObjectMap. Same coordinates ui-graphics uses in commonMain.
+            implementation("androidx.annotation:annotation:1.9.1")
+            implementation("androidx.collection:collection:1.5.0")
         }
 
         commonTest.dependencies {
@@ -46,6 +51,9 @@ kotlin {
 
         jsMain.dependencies {
             implementation(libs.kotlinCoroutinesCore)
+            // Same reason ui-graphics pins it for nonJvm: the klib resolver needs the JetBrains
+            // repackaging of androidx.collection until KT-61096 lands.
+            implementation("org.jetbrains.compose.collection-internal:collection:1.10.0")
         }
 
         jvmTest.dependencies {
