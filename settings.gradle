@@ -527,6 +527,7 @@ includeProject(":compose:ui:ui:integration-tests:ui-demos")
 includeProject(":compose:ui:ui:ui-samples", "compose/ui/ui/samples")
 includeProject(":compose:ui:ui-uikit")
 includeProject(":compose:ui:ui-backhandler")
+includeProject(":guest-shim")
 
 includeProject(":kruth:kruth")
 
