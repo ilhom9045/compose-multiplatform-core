@@ -111,6 +111,86 @@ only throw would buy nothing until someone needs `Modifier.drawBehind`.
 parameter type yet. When it is needed, a shape should cross as a description the host can rebuild
 (corner radii, and so on), not as a `Path` — same reasoning as the rest of the wire.
 
+## The boundary, as built
+
+`Modifier.kt`, `Alignment.kt` and `Arrangement.kt` are copies like everything else — a modifier
+chain is a linked list and an alignment is a singleton, both pure data. Only `Modifier.Node` was
+cut from `Modifier.kt`: it is the hook into the host's layout/draw node system (`DelegatableNode`,
+`NodeCoordinator`, `NodeKind`), and app code never names it.
+
+What is ours is the two things the rule reserves:
+
+| | Implemented | Crosses as |
+|---|---|---|
+| Modifier factories | `background`, `padding` ×3, `size` ×2, `width`, `height`, `fillMaxWidth`, `fillMaxHeight`, `fillMaxSize` | props on the node they decorate |
+| Composables | `Box`, `Column`, `Row`, `BasicText` | one host node each, parameters as props |
+
+A chain is collected into a `ShimProps` (`Modifier.toProps()`) and written whole. **Every field is
+written unconditionally, including fields still at their default.** `Updater.set` fires when a
+value returns to its default just as it does when it leaves it, so a default is how a *removed*
+modifier gets undone; guarding the write with `if (value != default)` is exactly what makes a
+removed modifier impossible to reset — the host keeps whatever it was last told. `sendInt` and
+`sendFloat` already drop writes that did not change, so an untouched prop costs nothing.
+
+Padding accumulates across a chain (`.padding(8.dp).padding(4.dp)` is 12dp), matching how nested
+upstream padding modifiers compose. Everything else is last-wins.
+
+Arrangements and alignments cross as small ints (`WireId`): the host holds the real singletons.
+`Arrangement.spacedBy` and custom `Alignment` instances carry a value instead of being one of the
+known singletons and have no id, so they throw rather than silently arriving as `Top`.
+
+**Not covered, and each fails loudly rather than quietly:** `BoxScope.align`/`matchParentSize`,
+`ColumnScope`/`RowScope` `align`/`weight` (per-child layout the wire has no prop for),
+`Box(propagateMinConstraints = true)`, `background(shape = …)` (needs `Shape`), and `BasicText`'s
+text-styling parameters (need ui-text).
+
+**Untested:** the reset path itself. The harness composes exactly one frame, and a default written
+at mount looks identical whether or not the reset logic is right — only a second composition that
+turns a modifier back off can tell them apart. A two-frame harness is the next thing worth
+building, before more surface.
+
+## The host
+
+The other half of the wire lives in **NativeCMPWeb** (`/Users/ilhom/AndroidStudioProjects/
+NativeCMPWeb`): `runtime/src/nativeMain/.../NodeRenderer.kt` turns node types and props into real
+Compose components, `NativeRenderTree.kt` applies the mutations, and `runtime/src/commonCpp/`
+buffers a batch and crosses to Kotlin once per commit.
+
+`Protocol.kt` here is a **verbatim copy of that project's `protocol/NodeType.kt`** — the whole
+table, not the subset this guest uses. The host owns those numbers; nothing may be renumbered on
+this side alone. The subset version drifted immediately: it had `Text = 1`, which is the host's
+`FontSize`, so a string prop would have arrived as a font size with nothing failing anywhere.
+
+The external functions match exactly — `__fh_mut` / `__fh_prop` / `__fh_str` / `__fh_commit`, same
+argument order, same placement of `-1` in each of the five mutation kinds, same `MutationType` and
+`PropValueType` values. The host additionally offers `__fh_long` and `__fh_double`, which this
+guest does not use yet.
+
+Two disagreements were found by reading the host and both are fixed:
+
+- **`width`/`height` when unset.** The guest writes every prop every time, so "no size modifier"
+  arrives as `Float.NaN`, while the host's convention was *key present means apply* — it would
+  have called `Modifier.width(Dp.Unspecified)`. NaN is Compose's own encoding for unspecified, so
+  `NodeRenderer` now skips it. The reset stays representable; the host stops acting on it.
+- **`fillMaxWidth(fraction)`.** The host reads that key as a flag, not a fraction, so a partial
+  fill would have silently become a full one. The guest now throws for any fraction but `1f`.
+- **Modifier order was being thrown away.** The host rebuilds a chain by walking the order props
+  arrived in — that is what its `modifierOrder` list is for — and the guest was emitting a fixed
+  order, which makes `padding().background()` and `background().padding()` identical on the wire
+  though they are different pictures. `ShimProps` now records the order the chain first touched
+  each group, `sendProps` emits those first and the untouched groups after, and both sides assert
+  it.
+
+Both halves are checked against the same numbers. `ModifierTest` here asserts what the guest puts
+on the wire for `Column(Modifier.padding(8.dp).background(Color.Red).fillMaxWidth())`;
+`GuestWireTest` over in NativeCMPWeb's `runtime/src/jvmTest` replays exactly those records through
+`NativeRenderTree` and asserts the `Modifier` that comes out is the one the app wrote. That runs on
+the JVM — `jvmMain dependsOn(nativeMain)` — so it needs no bundle, no signature and no simulator.
+
+**Still not proven:** nothing has rendered. Their runtime loads a signed `.ncwb` (QuickJS bytecode,
+manifest hashes, RSA signature), not this guest's `.mjs`, so pixels wait on packaging this bundle
+into that format.
+
 ## Keeping up with JetBrains
 
 Upstream lives in this same tree (this is the JetBrains fork), so a merge from `jb-main` updates

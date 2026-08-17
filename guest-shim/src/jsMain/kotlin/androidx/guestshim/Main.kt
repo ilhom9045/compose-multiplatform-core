@@ -16,9 +16,20 @@
 
 package androidx.guestshim
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.dp
 
 /**
  * Screens the harness can ask for by name. Task 5 adds the real one.
@@ -33,6 +44,17 @@ private val screens: Map<String, @Composable () -> Unit> = mapOf(
     "color" to {
         emitNode(nodeTypeId = NodeType.Box) {
             set(Unit) { sendInt(PropKey.BackgroundColor, Color.Red.toArgb()) }
+        }
+    },
+    // The real API: a modifier chain and three composables, so a test can assert that a chain
+    // collapses into props and that each composable becomes one host node.
+    "layout" to {
+        Column(
+            modifier = Modifier.padding(8.dp).background(Color.Red).fillMaxWidth(),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            BasicText("hi", Modifier.padding(4.dp).padding(2.dp))
+            Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {}
         }
     },
 )
