@@ -198,9 +198,38 @@ on the wire for `Column(Modifier.padding(8.dp).background(Color.Red).fillMaxWidt
 `NativeRenderTree` and asserts the `Modifier` that comes out is the one the app wrote. That runs on
 the JVM — `jvmMain dependsOn(nativeMain)` — so it needs no bundle, no signature and no simulator.
 
-**Still not proven:** nothing has rendered. Their runtime loads a signed `.ncwb` (QuickJS bytecode,
-manifest hashes, RSA signature), not this guest's `.mjs`, so pixels wait on packaging this bundle
-into that format.
+### Getting it on screen
+
+The host loads a signed `.ncwb` — a zip of QuickJS bytecode plus manifest hashes and an RSA
+signature — so the guest reaches pixels through their bundle pipeline:
+
+```
+./gradlew :composeApp:run -PguestJsDir=<abs path to guest-shim's productionExecutable/kotlin>
+```
+
+`guestJsDir` (added to `runtime/build.gradle.kts`) points the bundle build at this guest's output
+instead of `runtime/src/jsMain`. Two things had to change on the host for `.mjs` to get through:
+
+- `runtime/tools/compile_js.c` compiled everything as a script. It now compiles `.mjs` as a module,
+  names the module after the file's basename so `import './name.mjs'` resolves to it, and installs
+  a module loader — QuickJS resolves a module's imports while compiling it, so the dependencies
+  have to be readable from the same directory.
+- `runtime/src/commonCpp/quickjs_runtime.cpp` read bytecode and evaluated it directly, which is
+  right for a script but not for a module: module bytecode arrives with its imports unbound, so it
+  now calls `JS_ResolveModule` first.
+
+No module loader is needed in the engine itself, because the bundle carries `load-order.txt` and
+`JS_ReadObject` registers each module under the name in its bytecode — by the time anything is
+resolved, its dependencies are already in the module cache. A loader is what would let that file
+go away, and is what dynamic `import()` would need.
+
+The guest composes its own root as it loads; nothing calls into it afterwards. `globalThis.__screen`
+picks which screen to mount if the embedder sets it before loading, which is how the test harness
+chooses one.
+
+**Rendered:** `Column(Modifier.padding(8.dp).background(Color.Red).fillMaxWidth())` with a
+`BasicText("hi")` inside draws as a red full-width band with the text in it, in a desktop window,
+composed in QuickJS and rendered by the host's real Compose components.
 
 ## Keeping up with JetBrains
 

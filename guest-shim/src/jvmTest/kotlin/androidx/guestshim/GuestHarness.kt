@@ -130,6 +130,7 @@ object GuestHarness {
                 globalThis.console = { log(){}, warn(){}, error(){}, info(){}, debug(){} };
                 globalThis.setTimeout = function (fn) { fn(); return 0; };
                 globalThis.clearTimeout = function () {};
+                globalThis.__screen = '$screen';
                 """.trimIndent(),
             )
 
@@ -141,11 +142,14 @@ object GuestHarness {
                     filename = "guest-shim.mjs",
                     asModule = true,
                 )
-                js.evaluate<Any?>("globalThis.__runFrame('$screen');")
+                // The guest composes __screen as it loads, so the mount frame is already done here.
                 // The recomposer waits for a frame between compositions, so a state change alone
-                // changes nothing until __frame() releases one.
+                // changes nothing until one is released. __runtime_sendFrame is the same entry the
+                // C++ engine calls, so frames arrive here exactly as they will in the real host.
                 flags.forEach { value ->
-                    js.evaluate<Any?>("globalThis.__setFlag($value); globalThis.__frame();")
+                    js.evaluate<Any?>(
+                        "globalThis.__setFlag($value); globalThis.__runtime_sendFrame(0);",
+                    )
                 }
             } catch (e: Throwable) {
                 if (missing.isNotEmpty()) {
