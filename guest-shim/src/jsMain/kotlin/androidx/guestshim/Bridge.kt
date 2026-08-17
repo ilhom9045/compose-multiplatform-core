@@ -130,10 +130,12 @@ fun emitNode(
     )
 }
 
-/** Starts the Compose runtime in the guest and composes [content] once. */
+/** Starts the Compose runtime in the guest and composes [content]. */
 object GuestRuntime {
+    private var clock: BroadcastFrameClock? = null
+
     fun start(content: @Composable () -> Unit) {
-        val clock = BroadcastFrameClock()
+        val clock = BroadcastFrameClock().also { this.clock = it }
         val scope = CoroutineScope(clock + Job())
         val recomposer = Recomposer(scope.coroutineContext)
         val composition = Composition(GuestApplier(VNode(0, NodeType.Root)), recomposer)
@@ -141,5 +143,16 @@ object GuestRuntime {
         composition.setContent(content)
         Snapshot.registerGlobalWriteObserver { Snapshot.sendApplyNotifications() }
         scope.launch { recomposer.runRecomposeAndApplyChanges() }
+    }
+
+    /**
+     * Drives one recomposition, for a host that wants to control when a frame happens.
+     *
+     * The recomposer waits on [BroadcastFrameClock.withFrameNanos] between compositions, so a state
+     * change alone produces nothing: without a frame the guest stays silent, which is what keeps an
+     * idle screen off the wire. Everything a real frame would carry is in the batch that follows.
+     */
+    fun frame(timeNanos: Long = 0L) {
+        clock?.sendFrame(timeNanos)
     }
 }

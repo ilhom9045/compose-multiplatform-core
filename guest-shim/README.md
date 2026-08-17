@@ -144,10 +144,21 @@ known singletons and have no id, so they throw rather than silently arriving as 
 `Box(propagateMinConstraints = true)`, `background(shape = …)` (needs `Shape`), and `BasicText`'s
 text-styling parameters (need ui-text).
 
-**Untested:** the reset path itself. The harness composes exactly one frame, and a default written
-at mount looks identical whether or not the reset logic is right — only a second composition that
-turns a modifier back off can tell them apart. A two-frame harness is the next thing worth
-building, before more surface.
+### Frames
+
+`GuestHarness.runFrames(screen, vararg flags)` composes the screen and then drives one more frame
+per flag, returning one `Mutations` per commit. `runFrame` is the first of them.
+
+It exists because a single frame cannot tell a prop that was never set from one that was set and
+then taken away — at mount both are a default being written, which is exactly why the guarded-write
+bug survives review. `ResetTest` toggles a modifier on and back off and asserts all three frames.
+
+Two behaviours fall out of it, both asserted:
+
+- **An idle frame is silent.** A frame with no state change produces no commit at all, not an empty
+  one — the recomposer never reaches `onEndChanges`. Nothing reaches the host when nothing moved.
+- **An unchanged prop is not resent.** Writing the same value again recomposes nothing, so a
+  screen that keeps writing defaults costs one batch, not one per frame.
 
 ## The host
 

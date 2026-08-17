@@ -23,8 +23,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +41,13 @@ import androidx.compose.ui.unit.dp
  * assert on a real `MutationType.Create`/`Insert` pair instead of only ever checking for the
  * absence of mutations, which a harness that never executes JavaScript would also satisfy.
  */
+/**
+ * The one piece of state a screen can read and the harness can write, so a test can compose more
+ * than once. A modifier that appears and disappears with it is the only way to see the difference
+ * between a prop that was never set and one that was set and then taken away.
+ */
+private val flag = mutableStateOf(false)
+
 private val screens: Map<String, @Composable () -> Unit> = mapOf(
     "empty" to {},
     "probe" to { emitNode(nodeTypeId = NodeType.Box) {} },
@@ -57,6 +67,11 @@ private val screens: Map<String, @Composable () -> Unit> = mapOf(
             Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {}
         }
     },
+    // A modifier that comes and goes with `flag`, so a test can watch a prop be set and then
+    // taken away. The second half is the half a one-frame harness cannot see.
+    "toggle" to {
+        Box(if (flag.value) Modifier.width(24.dp).background(Color.Red) else Modifier) {}
+    },
 )
 
 fun main() {
@@ -65,4 +80,6 @@ fun main() {
         val screen = screens[name] ?: throw IllegalArgumentException("unknown screen: $name")
         GuestRuntime.start(screen)
     }
+    g.__setFlag = { value: Boolean -> flag.value = value }
+    g.__frame = { GuestRuntime.frame() }
 }

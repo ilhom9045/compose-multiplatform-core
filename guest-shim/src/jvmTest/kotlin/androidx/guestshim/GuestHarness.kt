@@ -52,7 +52,19 @@ object GuestHarness {
         return candidates.map { File(bundleDir, it) }.firstOrNull { it.isFile }
     }
 
-    fun runFrame(screen: String): Mutations = runBlocking {
+    /** The first frame only. Most screens compose once and never change. */
+    fun runFrame(screen: String): Mutations = runFrames(screen).first()
+
+    /**
+     * Composes [screen], then drives one more frame per entry in [flags], setting the guest's flag
+     * to that value before each.
+     *
+     * A single frame cannot tell a prop that was never set from one that was set and then taken
+     * away: at mount both look like a default being written. Only a later frame that turns a
+     * modifier back off shows whether the reset actually travels, which is why this exists.
+     */
+    fun runFrames(screen: String, vararg flags: Boolean): List<Mutations> = runBlocking {
+        val frames = mutableListOf<Mutations>()
         val mutations = mutableListOf<Int>()
         val props = mutableListOf<Int>()
         val strings = mutableListOf<String>()
@@ -87,7 +99,15 @@ object GuestHarness {
                 props.add(strings.size)
                 strings.add(args[2] as String)
             }
-            js.function("__fh_commit") { }
+            // Every frame ends with one commit, so this is the frame boundary: take what has piled
+            // up since the last one and start fresh. String indices are per frame because the
+            // records that reference them are.
+            js.function("__fh_commit") {
+                frames.add(Mutations(mutations.toList(), props.toList(), strings.toList()))
+                mutations.clear()
+                props.clear()
+                strings.clear()
+            }
 
             // Bare QuickJS ships neither a `console` nor timers. kotlinx-coroutines' default
             // dispatcher schedules continuations with setTimeout, and its uncaught-exception
@@ -122,6 +142,11 @@ object GuestHarness {
                     asModule = true,
                 )
                 js.evaluate<Any?>("globalThis.__runFrame('$screen');")
+                // The recomposer waits for a frame between compositions, so a state change alone
+                // changes nothing until __frame() releases one.
+                flags.forEach { value ->
+                    js.evaluate<Any?>("globalThis.__setFlag($value); globalThis.__frame();")
+                }
             } catch (e: Throwable) {
                 if (missing.isNotEmpty()) {
                     throw AssertionError(
@@ -134,6 +159,7 @@ object GuestHarness {
             }
         }
 
-        Mutations(mutations, props, strings)
+        check(frames.isNotEmpty()) { "the guest produced no commit for screen '$screen'" }
+        frames
     }
 }
