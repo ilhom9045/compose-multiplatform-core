@@ -98,18 +98,35 @@ actuals, inlined verbatim at the point of declaration and marked with a comment:
 
 `Canvas`, `Path`, `Paint`, `ImageBitmap`, `Shader`, `ColorFilter`, `PathEffect`, `RenderEffect`,
 `BlendMode`, `TileMode`, `PathIterator`, `PathMeasure`, `GraphicsLayer`, `Blur` — 14 files whose
-js actuals wrap skiko — plus everything that transitively needs them: `Brush`, `Shape`,
-`Outline`, `drawscope/`, `painter/`, `vector/` (except `PathNode`/`PathBuilder`), `layer/`,
-`shadow/`. 41 files, all inside `graphics/`; no value type was touched by the cut.
+js actuals wrap skiko — plus everything that transitively needs them: `Brush`, `drawscope/`,
+`painter/`, `vector/` (except `PathNode`/`PathBuilder`), `layer/`, `shadow/`. All inside
+`graphics/`; no value type was touched by the cut.
 
 These are the one place the copy rule does not reach. Their bodies are not transcription — a
 guest `Canvas` would have to *record* each call onto the wire, which is the boundary work this
 document reserves for `Modifier` and `@Composable`. Copying 3100 lines of declarations that can
 only throw would buy nothing until someone needs `Modifier.drawBehind`.
 
-**Known gap:** `Shape` went with them, so `Modifier.background(color, shape)` has no shape
-parameter type yet. When it is needed, a shape should cross as a description the host can rebuild
-(corner radii, and so on), not as a `Path` — same reasoning as the rest of the wire.
+### Shapes
+
+`Shape`, `Outline`, `CornerSize`, `CornerBasedShape` and `RoundedCornerShape` came back later and
+are copies like everything else — they turned out to need only geometry and units, which the guest
+already has. Two deviations, both marked in place:
+
+- `Outline.Generic` wraps a `Path`, and the rest of `Outline.kt` draws through `DrawScope`,
+  `Canvas` and `Path`. `Rectangle` and `Rounded` are pure geometry and are copied unchanged.
+- `CutCornerShape` is built entirely from a `Path`, and the wire has no cut-corner type.
+
+A shape never crosses as an `Outline`: `createOutline` needs the size and density that only the
+host has at layout, so the guest sends what the shape *is* — `ClipShapeType` (0 rectangle,
+1 rounded, 2 circle) plus four corner radii in dp — and the host rebuilds the real one.
+
+`CornerSize` only exposes `toPx(shapeSize, density)` and its implementations are private, so the
+radius is read by asking: at density 1 a dp corner answers its own number. Asking twice with
+different sizes is what separates a dp corner from a percentage one, and a percentage corner is
+refused — what it would be a percentage *of* is the host's to know. `CircleShape` is
+`RoundedCornerShape(50)`, a percentage shape, so it is recognised by value and sent as its own
+type instead.
 
 ## The boundary, as built
 
@@ -122,7 +139,7 @@ What is ours is the two things the rule reserves:
 
 | | Implemented | Crosses as |
 |---|---|---|
-| Modifier factories | `background`, `padding` ×3, `size` ×2, `width`, `height`, `fillMaxWidth`, `fillMaxHeight`, `fillMaxSize` | props on the node they decorate |
+| Modifier factories | `background`, `clip`, `padding` ×3, `size` ×2, `width`, `height`, `fillMaxWidth`, `fillMaxHeight`, `fillMaxSize` | props on the node they decorate |
 | Composables | `Box`, `Column`, `Row`, `BasicText` | one host node each, parameters as props |
 
 A chain is collected into a `ShimProps` (`Modifier.toProps()`) and written whole. **Every field is
@@ -141,8 +158,9 @@ known singletons and have no id, so they throw rather than silently arriving as 
 
 **Not covered, and each fails loudly rather than quietly:** `BoxScope.align`/`matchParentSize`,
 `ColumnScope`/`RowScope` `align`/`weight` (per-child layout the wire has no prop for),
-`Box(propagateMinConstraints = true)`, `background(shape = …)` (needs `Shape`), and `BasicText`'s
-text-styling parameters (need ui-text).
+`Box(propagateMinConstraints = true)`, `background(shape = …)` (the shape parameter, not the type —
+the wire carries one shape per node, and `clip` already has it), a percentage `CornerSize`, and
+`BasicText`'s text-styling parameters (need ui-text).
 
 ### Frames
 

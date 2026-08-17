@@ -27,6 +27,7 @@ private val AllGroups =
         PropKey.Width,
         PropKey.Height,
         PropKey.FillMaxWidth,
+        PropKey.ClipShapeType,
     )
 
 /**
@@ -61,6 +62,13 @@ private fun VNode.sendGroup(group: Int, props: ShimProps) {
         PropKey.FillMaxWidth -> {
             sendFloat(PropKey.FillMaxWidth, props.fillMaxWidth)
             sendFloat(PropKey.FillMaxHeight, props.fillMaxHeight)
+        }
+        PropKey.ClipShapeType -> {
+            sendInt(PropKey.ClipShapeType, props.clipShapeType)
+            sendFloat(PropKey.CornerRadiusTopStart, props.cornerTopStart)
+            sendFloat(PropKey.CornerRadiusTopEnd, props.cornerTopEnd)
+            sendFloat(PropKey.CornerRadiusBottomEnd, props.cornerBottomEnd)
+            sendFloat(PropKey.CornerRadiusBottomStart, props.cornerBottomStart)
         }
     }
 }

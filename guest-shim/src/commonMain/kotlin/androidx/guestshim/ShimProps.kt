@@ -60,6 +60,15 @@ class ShimProps {
     // Fraction of the parent, 0f meaning the modifier was not applied.
     var fillMaxWidth: Float = 0f
     var fillMaxHeight: Float = 0f
+
+    // A shape crosses as a description the host rebuilds, never as an Outline or a Path: 0 is a
+    // rectangle, 1 rounded with the four radii below in dp, 2 a circle. The guest cannot resolve a
+    // shape itself — createOutline needs the size and density that only the host has at layout.
+    var clipShapeType: Int = 0
+    var cornerTopStart: Float = 0f
+    var cornerTopEnd: Float = 0f
+    var cornerBottomEnd: Float = 0f
+    var cornerBottomStart: Float = 0f
 }
 
 /** A `Modifier.Element` that carries wire props rather than a host-side `Modifier.Node`. */

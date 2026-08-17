@@ -24,7 +24,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,12 +63,24 @@ private val screens: Map<String, @Composable () -> Unit> = mapOf(
     // collapses into props and that each composable becomes one host node.
     "layout" to {
         Column(
-            modifier = Modifier.padding(8.dp).background(Color.Red).fillMaxWidth(),
+            modifier = Modifier
+                .padding(8.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.Red)
+                .fillMaxWidth(),
             verticalArrangement = Arrangement.Center,
         ) {
             BasicText("hi", Modifier.padding(4.dp).padding(2.dp))
-            Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {}
+            Box(
+                Modifier.size(24.dp).clip(CircleShape).background(Color.Blue),
+                contentAlignment = Alignment.Center,
+            ) {}
         }
+    },
+    // A percentage corner has no dp to send: what it is a percentage *of* is the host's size, known
+    // only at layout. The guest must refuse rather than send a plausible number.
+    "percentClip" to {
+        Box(Modifier.clip(RoundedCornerShape(percent = 25))) {}
     },
     // A modifier that comes and goes with `flag`, so a test can watch a prop be set and then
     // taken away. The second half is the half a one-frame harness cannot see.
