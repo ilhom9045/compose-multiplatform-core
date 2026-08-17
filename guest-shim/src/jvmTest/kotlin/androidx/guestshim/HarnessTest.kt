@@ -29,4 +29,27 @@ class HarnessTest {
             "empty screen should create no nodes, got ${frame.records()}",
         )
     }
+
+    /**
+     * Proves the bridge really executes: the empty-screen test above is satisfied by a harness
+     * that never runs any JavaScript at all, since zero mutations is also what "nothing
+     * happened" looks like. This one composes a screen that emits exactly one Box and checks
+     * for the specific Create/Insert records that only a real composition through
+     * GuestApplier -> __fh_mut can produce. If `GuestHarness.runFrame` were stubbed to return
+     * empty `Mutations` unconditionally, this test goes red.
+     */
+    @Test
+    fun `a probe screen creates and inserts a single Box node`() {
+        val frame = GuestHarness.runFrame("probe")
+        val records = frame.records()
+
+        assertTrue(
+            records.any { it[0] == MutationType.Create && it[6] == NodeType.Box },
+            "expected a Create record for a Box node, got $records",
+        )
+        assertTrue(
+            records.any { it[0] == MutationType.Insert },
+            "expected an Insert record, got $records",
+        )
+    }
 }

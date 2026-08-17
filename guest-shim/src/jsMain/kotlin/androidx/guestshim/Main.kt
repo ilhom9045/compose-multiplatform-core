@@ -18,9 +18,16 @@ package androidx.guestshim
 
 import androidx.compose.runtime.Composable
 
-/** Screens the harness can ask for by name. Task 5 adds the real one. */
+/**
+ * Screens the harness can ask for by name. Task 5 adds the real one.
+ *
+ * "probe" exists to prove the bridge actually runs: it emits exactly one node, so a test can
+ * assert on a real `MutationType.Create`/`Insert` pair instead of only ever checking for the
+ * absence of mutations, which a harness that never executes JavaScript would also satisfy.
+ */
 private val screens: Map<String, @Composable () -> Unit> = mapOf(
     "empty" to {},
+    "probe" to { emitNode(nodeTypeId = NodeType.Box) {} },
 )
 
 fun main() {

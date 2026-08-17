@@ -94,6 +94,17 @@ object GuestHarness {
             // path logs through console.error; without both, a real guest failure surfaces as
             // a ReferenceError from inside those paths instead of the original cause. A real
             // host embedding this guest needs to supply the same globals.
+            //
+            // setTimeout here runs its callback immediately, in-stack, instead of deferring it
+            // to a later turn of an event loop — there is no queue, no delay, no ordering
+            // relative to other timers. That is sufficient for composing exactly one frame and
+            // returning, which is all this harness does. It is NOT a real timer: a later task
+            // that drives multiple frames, or whose correctness depends on timer/microtask
+            // ordering, needs a real queue here instead of this shim.
+            //
+            // console output from the guest is silently discarded. A test that wants to assert
+            // on a guest-side console.warn/error needs to capture it here rather than relying
+            // on this no-op.
             js.evaluate<Any?>(
                 """
                 globalThis.console = { log(){}, warn(){}, error(){}, info(){}, debug(){} };
