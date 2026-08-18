@@ -49,6 +49,11 @@ kotlin {
             implementation(libs.kotlinTest)
         }
 
+        // The sample is ordinary Compose, compiled here against the shim and by :guest-shim-check
+        // against the real Compose in this tree. One file, two compilations — that is what keeps
+        // "drop-in replacement" a compiler-checked claim.
+        jsMain { kotlin.srcDir("sample") }
+
         jsMain.dependencies {
             implementation(libs.kotlinCoroutinesCore)
             // Same reason ui-graphics pins it for nonJvm: the klib resolver needs the JetBrains

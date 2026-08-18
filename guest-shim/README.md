@@ -163,7 +163,7 @@ What is ours is the two things the rule reserves:
 | | Implemented | Crosses as |
 |---|---|---|
 | Modifier factories | `background`, `clip`, `clickable`, `padding` ×3, `size` ×2, `width`, `height`, `fillMaxWidth`, `fillMaxHeight`, `fillMaxSize` | props on the node they decorate |
-| Composables | `Box`, `Column`, `Row`, `BasicText` | one host node each, parameters as props |
+| Composables | `Box`, `Column`, `Row`, `Text`, `BasicText` | one host node each, parameters as props |
 
 A chain is collected into a `ShimProps` (`Modifier.toProps()`) and written whole. **Every field is
 written unconditionally, including fields still at their default.** `Updater.set` fires when a
@@ -263,6 +263,20 @@ also why `OnClick` is not in `AllGroups`.
 An event naming a node the guest no longer has is ignored, not fatal: a click reported for a node
 removed in the same frame is a race the host cannot avoid.
 
+### Text
+
+`material3.Text` carries `color` and `fontSize` because the wire has flat keys for them —
+`BasicText`'s styling goes through a `TextStyle`, which needs ui-text. Size crosses as a float in
+sp, and `TextUnit.Unspecified` crosses as `NaN`, which is the host's own encoding for it; so size
+is written every frame and a size returning to the default resets properly.
+
+**Colour cannot reset.** The host reads an *absent* `Color` key as `Color.Unspecified`, and every
+Int is a real colour — 0 is transparent black, not "no colour". So the guest writes the key only
+when a colour is set, which is the guarded write that `Updater.set` normally punishes: a `Text`
+that has been given a colour cannot go back to the theme default. It is kept deliberately, because
+there is no value to send instead. Fixing it takes a sentinel agreed on both sides; the same limit
+exists in the host's own shim today.
+
 ### Getting it on screen
 
 The host loads a signed `.ncwb` — a zip of QuickJS bytecode plus manifest hashes and an RSA
@@ -295,6 +309,40 @@ chooses one.
 **Rendered:** `Column(Modifier.padding(8.dp).background(Color.Red).fillMaxWidth())` with a
 `BasicText("hi")` inside draws as a red full-width band with the text in it, in a desktop window,
 composed in QuickJS and rendered by the host's real Compose components.
+
+## Is it actually a replacement?
+
+The point of copying upstream is that app code written against real Compose compiles against the
+shim unchanged. That is a claim, and until it is compiled both ways it is only a claim — every
+screen written while looking at the shim will pass, because it was written to fit.
+
+`guest-shim/sample/` is ordinary Compose that knows nothing about the guest, compiled from one
+place by two compilations:
+
+```
+./gradlew :guest-shim:compileProductionExecutableKotlinJs   # against the shim
+./gradlew :guest-shim-check:compileKotlinDesktop            # against the real Compose in this tree
+```
+
+`:guest-shim-check` has no sources of its own; it adds `../guest-shim/sample` as a source directory
+and depends on `:compose:foundation:foundation`, `:compose:material3:material3` and the rest as
+*project* references. The oracle is the very upstream the shim was copied from, in the state this
+tree has it, not some published artifact that may have drifted.
+
+It catches what it is meant to. Writing `background(Color.Red, RoundedCornerShape(4.dp))` — a shape
+parameter the shim dropped — compiles against real Compose and fails against the shim with *"Too
+many arguments for fun Modifier.background(color: Color)"*. A signature that drifts stops being a
+screen rendering slightly wrong and becomes a build failure.
+
+**It only covers what the sample uses.** Growing the sample is how the covered surface grows, and
+each addition is a small piece of work: `Text(fontWeight = …)`, `padding(PaddingValues(…))`,
+`Modifier.alpha`/`border`/`offset` — all of which the host already has prop keys for — would each
+turn the js side red today. That list is the backlog, and now it is a compiler's list rather than
+one somebody has to remember.
+
+Also unchecked by this: the sample is the demo, so `Main.kt`'s `"layout"` screen is `sample.App()`.
+The other screens there stay hand-written because they exist to poke at edges the API does not
+expose — a percentage corner, a modifier that comes and goes.
 
 ## Keeping up with JetBrains
 

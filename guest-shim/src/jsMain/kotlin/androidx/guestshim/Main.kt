@@ -38,7 +38,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.material3.Text
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Screens the harness can ask for by name. Task 5 adds the real one.
@@ -64,26 +66,7 @@ private val screens: Map<String, @Composable () -> Unit> = mapOf(
     },
     // The real API: a modifier chain and three composables, so a test can assert that a chain
     // collapses into props and that each composable becomes one host node.
-    "layout" to {
-        Column(
-            modifier = Modifier
-                .padding(8.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.Red)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            BasicText("hi", Modifier.padding(4.dp).padding(2.dp))
-            var on by remember { mutableStateOf(false) }
-            Box(
-                Modifier.size(24.dp)
-                    .clip(CircleShape)
-                    .background(if (on) Color.Green else Color.Blue)
-                    .clickable { on = !on },
-                contentAlignment = Alignment.Center,
-            ) {}
-        }
-    },
+    "layout" to { sample.App() },
     // A percentage corner has no dp to send: what it is a percentage *of* is the host's size, known
     // only at layout. The guest must refuse rather than send a plausible number.
     "percentClip" to {
@@ -93,7 +76,7 @@ private val screens: Map<String, @Composable () -> Unit> = mapOf(
     // new text goes back on the next frame.
     "click" to {
         var count by remember { mutableStateOf(0) }
-        Column(Modifier.clickable { count++ }) { BasicText("count=$count") }
+        Column(Modifier.clickable { count++ }) { Text("count=$count") }
     },
     // Only the colour changes between frames. The rest of the chain has to travel anyway: the host
     // rebuilds a node's modifier order out of the batch, so a batch carrying just the colour would

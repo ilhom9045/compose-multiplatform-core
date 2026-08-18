@@ -448,6 +448,7 @@ includeProject(":compose:ui:ui:ui-samples", "compose/ui/ui/samples")
 includeProject(":compose:ui:ui-uikit")
 includeProject(":compose:ui:ui-backhandler")
 includeProject(":guest-shim")
+includeProject(":guest-shim-check")
 
 includeProject(":kruth:kruth")
 
