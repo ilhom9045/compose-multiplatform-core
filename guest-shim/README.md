@@ -139,7 +139,7 @@ What is ours is the two things the rule reserves:
 
 | | Implemented | Crosses as |
 |---|---|---|
-| Modifier factories | `background`, `clip`, `padding` ×3, `size` ×2, `width`, `height`, `fillMaxWidth`, `fillMaxHeight`, `fillMaxSize` | props on the node they decorate |
+| Modifier factories | `background`, `clip`, `clickable`, `padding` ×3, `size` ×2, `width`, `height`, `fillMaxWidth`, `fillMaxHeight`, `fillMaxSize` | props on the node they decorate |
 | Composables | `Box`, `Column`, `Row`, `BasicText` | one host node each, parameters as props |
 
 A chain is collected into a `ShimProps` (`Modifier.toProps()`) and written whole. **Every field is
@@ -148,6 +148,14 @@ value returns to its default just as it does when it leaves it, so a default is 
 modifier gets undone; guarding the write with `if (value != default)` is exactly what makes a
 removed modifier impossible to reset — the host keeps whatever it was last told. `sendInt` and
 `sendFloat` already drop writes that did not change, so an untouched prop costs nothing.
+
+**A changed chain travels whole.** The host clears a node's modifier order on the first modifier
+prop of a batch and rebuilds it from that batch alone, so a batch carrying only the colour that
+changed would drop padding, clip and fill out of the chain — their values still in the host's map,
+with nothing walking them. Modifier props are therefore written without the usual unchanged-value
+dedup. Skipping happens at a coarser grain instead: `sendProps` is called from
+`Updater.set(modifier)`, which fires only when the chain itself changed, so an idle node still
+sends nothing.
 
 Padding accumulates across a chain (`.padding(8.dp).padding(4.dp)` is 12dp), matching how nested
 upstream padding modifiers compose. Everything else is last-wins.
@@ -215,6 +223,22 @@ on the wire for `Column(Modifier.padding(8.dp).background(Color.Red).fillMaxWidt
 `GuestWireTest` over in NativeCMPWeb's `runtime/src/jvmTest` replays exactly those records through
 `NativeRenderTree` and asserts the `Modifier` that comes out is the one the app wrote. That runs on
 the JVM — `jvmMain dependsOn(nativeMain)` — so it needs no bundle, no signature and no simulator.
+
+### Events
+
+`Modifier.clickable` is the first prop that travels both ways. The lambda never crosses: the guest
+sends `OnClick` with value type `Callback` and an empty payload, meaning *a handler exists*; the
+host registers a stub and calls back through `__runtime_onEvent(nodeId, keyId)`. The guest finds
+the handler in the node the applier created under that id and runs it, and whatever state it
+touched shows up on the next frame the host asks for.
+
+This one prop breaks the "write every group every time" rule, because the host's encoding has no
+value meaning *no handler*. A removed `clickable` — or `enabled = false` — travels as the prop
+being absent from the batch, which the order rebuild above turns into a node without it. That is
+also why `OnClick` is not in `AllGroups`.
+
+An event naming a node the guest no longer has is ignored, not fatal: a click reported for a node
+removed in the same frame is a race the host cannot avoid.
 
 ### Getting it on screen
 

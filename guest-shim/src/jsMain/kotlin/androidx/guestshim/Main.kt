@@ -29,8 +29,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -71,8 +74,12 @@ private val screens: Map<String, @Composable () -> Unit> = mapOf(
             verticalArrangement = Arrangement.Center,
         ) {
             BasicText("hi", Modifier.padding(4.dp).padding(2.dp))
+            var on by remember { mutableStateOf(false) }
             Box(
-                Modifier.size(24.dp).clip(CircleShape).background(Color.Blue),
+                Modifier.size(24.dp)
+                    .clip(CircleShape)
+                    .background(if (on) Color.Green else Color.Blue)
+                    .clickable { on = !on },
                 contentAlignment = Alignment.Center,
             ) {}
         }
@@ -81,6 +88,18 @@ private val screens: Map<String, @Composable () -> Unit> = mapOf(
     // only at layout. The guest must refuse rather than send a plausible number.
     "percentClip" to {
         Box(Modifier.clip(RoundedCornerShape(percent = 25))) {}
+    },
+    // The wire's first round trip: the host reports a click, the guest's own state moves, and the
+    // new text goes back on the next frame.
+    "click" to {
+        var count by remember { mutableStateOf(0) }
+        Column(Modifier.clickable { count++ }) { BasicText("count=$count") }
+    },
+    // Only the colour changes between frames. The rest of the chain has to travel anyway: the host
+    // rebuilds a node's modifier order out of the batch, so a batch carrying just the colour would
+    // drop the padding from the chain.
+    "partial" to {
+        Box(Modifier.padding(8.dp).background(if (flag.value) Color.Blue else Color.Red)) {}
     },
     // A modifier that comes and goes with `flag`, so a test can watch a prop be set and then
     // taken away. The second half is the half a one-frame harness cannot see.
@@ -97,9 +116,7 @@ fun main() {
     // through these. The guest never drives its own frames — the host decides when one happens,
     // which is what keeps an idle screen silent.
     g.__runtime_sendFrame = { nanos: Double -> GuestRuntime.frame(nanos.toLong()) }
-    g.__runtime_onEvent = { nodeId: Int, keyId: Int, value: String? ->
-        throw UnsupportedInGuestException("__runtime_onEvent($nodeId, $keyId, $value)")
-    }
+    g.__runtime_onEvent = { nodeId: Int, keyId: Int -> dispatchEvent(nodeId, keyId) }
 
     // Test-only: poke the one piece of state a screen can read.
     g.__setFlag = { value: Boolean -> flag.value = value }

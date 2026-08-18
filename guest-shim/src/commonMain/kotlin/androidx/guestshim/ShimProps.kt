@@ -69,6 +69,13 @@ class ShimProps {
     var cornerTopEnd: Float = 0f
     var cornerBottomEnd: Float = 0f
     var cornerBottomStart: Float = 0f
+
+    /**
+     * The click handler, kept here and never sent. Unlike every other prop this one has no
+     * "unset" value on the wire: the host's encoding says *a callback exists*, and nothing more.
+     * A removed `clickable` therefore travels as the absence of the prop, not as a default.
+     */
+    var onClick: (() -> Unit)? = null
 }
 
 /** A `Modifier.Element` that carries wire props rather than a host-side `Modifier.Node`. */

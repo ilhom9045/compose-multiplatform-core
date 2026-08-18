@@ -48,27 +48,51 @@ fun VNode.sendProps(props: ShimProps) {
     AllGroups.forEach { if (it !in props.order) sendGroup(it, props) }
 }
 
+/**
+ * Modifier props are written **without** the usual unchanged-value dedup.
+ *
+ * The host rebuilds a node's modifier order from the batch: the first modifier prop it sees clears
+ * the whole order, and the order is then whatever that batch carried. So a batch holding only the
+ * colour that changed would silently drop padding, clip and fill from the chain — the values are
+ * still in its map, but nothing walks them any more.
+ *
+ * Skipping is safe at a coarser grain instead: `sendProps` is called from `Updater.set(modifier)`,
+ * which fires only when the chain itself changed, so an idle node sends nothing at all.
+ */
+private fun VNode.writeInt(keyId: Int, value: Int) {
+    intCache[keyId] = value
+    __fh_prop(id, keyId, PropValueType.Int, value)
+}
+
+private fun VNode.writeFloat(keyId: Int, value: Float) {
+    floatCache[keyId] = value
+    __fh_prop(id, keyId, PropValueType.Float, value.toBits())
+}
+
 private fun VNode.sendGroup(group: Int, props: ShimProps) {
     when (group) {
-        PropKey.BackgroundColor -> sendInt(PropKey.BackgroundColor, props.backgroundColor)
+        PropKey.BackgroundColor -> writeInt(PropKey.BackgroundColor, props.backgroundColor)
         PropKey.PaddingTop -> {
-            sendFloat(PropKey.PaddingStart, props.paddingStart)
-            sendFloat(PropKey.PaddingTop, props.paddingTop)
-            sendFloat(PropKey.PaddingEnd, props.paddingEnd)
-            sendFloat(PropKey.PaddingBottom, props.paddingBottom)
+            writeFloat(PropKey.PaddingStart, props.paddingStart)
+            writeFloat(PropKey.PaddingTop, props.paddingTop)
+            writeFloat(PropKey.PaddingEnd, props.paddingEnd)
+            writeFloat(PropKey.PaddingBottom, props.paddingBottom)
         }
-        PropKey.Width -> sendFloat(PropKey.Width, props.width)
-        PropKey.Height -> sendFloat(PropKey.Height, props.height)
+        PropKey.Width -> writeFloat(PropKey.Width, props.width)
+        PropKey.Height -> writeFloat(PropKey.Height, props.height)
         PropKey.FillMaxWidth -> {
-            sendFloat(PropKey.FillMaxWidth, props.fillMaxWidth)
-            sendFloat(PropKey.FillMaxHeight, props.fillMaxHeight)
+            writeFloat(PropKey.FillMaxWidth, props.fillMaxWidth)
+            writeFloat(PropKey.FillMaxHeight, props.fillMaxHeight)
         }
+        // Deliberately absent from AllGroups: there is no value that means "no handler", so a
+        // removed clickable travels as this prop not being in the batch at all.
+        PropKey.OnClick -> props.onClick?.let { sendCallback(PropKey.OnClick, it) }
         PropKey.ClipShapeType -> {
-            sendInt(PropKey.ClipShapeType, props.clipShapeType)
-            sendFloat(PropKey.CornerRadiusTopStart, props.cornerTopStart)
-            sendFloat(PropKey.CornerRadiusTopEnd, props.cornerTopEnd)
-            sendFloat(PropKey.CornerRadiusBottomEnd, props.cornerBottomEnd)
-            sendFloat(PropKey.CornerRadiusBottomStart, props.cornerBottomStart)
+            writeInt(PropKey.ClipShapeType, props.clipShapeType)
+            writeFloat(PropKey.CornerRadiusTopStart, props.cornerTopStart)
+            writeFloat(PropKey.CornerRadiusTopEnd, props.cornerTopEnd)
+            writeFloat(PropKey.CornerRadiusBottomEnd, props.cornerBottomEnd)
+            writeFloat(PropKey.CornerRadiusBottomStart, props.cornerBottomStart)
         }
     }
 }

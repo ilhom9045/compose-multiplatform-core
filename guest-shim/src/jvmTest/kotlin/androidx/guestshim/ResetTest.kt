@@ -63,6 +63,20 @@ class ResetTest {
     }
 
     @Test
+    fun `a changed chain travels whole, not just the prop that changed`() {
+        val frames = GuestHarness.runFrames("partial", true)
+        assertEquals(2, frames.size)
+
+        // The host clears a node's modifier order on the first modifier prop of a batch and
+        // rebuilds it from that batch alone. Sending only the colour would leave the order as
+        // [BackgroundColor] and drop the padding out of the chain — the value would still be in the
+        // host's map with nothing walking it.
+        assertEquals(listOf(0xFF0000FF.toInt()), props(frames[1], PropKey.BackgroundColor))
+        assertEquals(listOf(8f), props(frames[1], PropKey.PaddingStart).map { Float.fromBits(it) })
+        assertEquals(listOf(0), props(frames[1], PropKey.ClipShapeType))
+    }
+
+    @Test
     fun `an idle frame is silent`() {
         // Nothing changes, so the recomposer has nothing to apply and never reaches onEndChanges.
         assertEquals(1, GuestHarness.runFrames("toggle", false).size)

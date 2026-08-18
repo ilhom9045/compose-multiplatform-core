@@ -63,7 +63,18 @@ object GuestHarness {
      * away: at mount both look like a default being written. Only a later frame that turns a
      * modifier back off shows whether the reset actually travels, which is why this exists.
      */
-    fun runFrames(screen: String, vararg flags: Boolean): List<Mutations> = runBlocking {
+    /**
+     * Composes [screen], then for each entry in [clicks] reports a click on that node id and drives
+     * a frame — the same two calls the host makes, `__runtime_onEvent` then `__runtime_sendFrame`.
+     */
+    fun runClicks(screen: String, vararg clicks: Int): List<Mutations> =
+        runFrames(screen, actions = clicks.map { "globalThis.__runtime_onEvent($it, ${PropKey.OnClick});" })
+
+    fun runFrames(
+        screen: String,
+        vararg flags: Boolean,
+        actions: List<String> = emptyList(),
+    ): List<Mutations> = runBlocking {
         val frames = mutableListOf<Mutations>()
         val mutations = mutableListOf<Int>()
         val props = mutableListOf<Int>()
@@ -150,6 +161,9 @@ object GuestHarness {
                     js.evaluate<Any?>(
                         "globalThis.__setFlag($value); globalThis.__runtime_sendFrame(0);",
                     )
+                }
+                actions.forEach { action ->
+                    js.evaluate<Any?>("$action globalThis.__runtime_sendFrame(0);")
                 }
             } catch (e: Throwable) {
                 if (missing.isNotEmpty()) {
