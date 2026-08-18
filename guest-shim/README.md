@@ -4,6 +4,29 @@ The Compose API surface as the guest sees it. Compiled to JS, executed inside Qu
 host. Composition runs in the guest; nothing is drawn there. Every visible effect is produced by
 the host, which owns the real Compose UI.
 
+## Writing a guest
+
+An app is a `main` and one call:
+
+```kotlin
+fun main() = setContent {
+    Column(Modifier.padding(8.dp).background(Color.Red).fillMaxWidth()) {
+        BasicText("hi")
+    }
+}
+```
+
+`setContent` wires up everything the host expects on the other side of the bridge — the frame and
+event entry points it calls back through — and starts composition as it runs, because the host
+evaluates the bundle and calls nothing afterwards. Nothing about frames, globals or node ids
+appears in an app.
+
+It composes a single root and refuses a second call: node ids are handed out per composition, so
+another one would hand the host ids it has already seen.
+
+`Main.kt` in this module is not that shape — it keeps a map of screens and two globals so the test
+harness can drive each in turn. That is scaffolding for the shim's own tests, not the API.
+
 ## The copy rule
 
 **Copy upstream verbatim. Change behaviour in exactly two places: `Modifier` and `@Composable`

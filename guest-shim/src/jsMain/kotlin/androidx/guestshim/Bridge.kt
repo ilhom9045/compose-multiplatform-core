@@ -65,7 +65,7 @@ private val nodesById = HashMap<Int, VNode>()
  * Runs the handler the host says fired. Unknown ids and keys are ignored rather than fatal: an
  * event for a node removed in the same frame is a race the host cannot avoid, not a bug.
  */
-fun dispatchEvent(nodeId: Int, keyId: Int) {
+internal fun dispatchEvent(nodeId: Int, keyId: Int) {
     nodesById[nodeId]?.callbacks?.get(keyId)?.invoke()
 }
 
@@ -172,8 +172,8 @@ fun emitNode(
     )
 }
 
-/** Starts the Compose runtime in the guest and composes [content]. */
-object GuestRuntime {
+/** Starts the Compose runtime in the guest and composes [content]. Reached through [setContent]. */
+internal object GuestRuntime {
     private var clock: BroadcastFrameClock? = null
 
     fun start(content: @Composable () -> Unit) {

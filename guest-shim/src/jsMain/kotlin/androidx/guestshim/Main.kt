@@ -108,23 +108,15 @@ private val screens: Map<String, @Composable () -> Unit> = mapOf(
     },
 )
 
+/**
+ * A real app is `fun main() = setContent { … }` and nothing else. The two globals below are this
+ * module's own test scaffolding: `__screen` picks one of the screens above so the harness can drive
+ * each in turn, and `__setFlag` pokes the one piece of state they read.
+ */
 fun main() {
-    val g: dynamic = js("globalThis")
+    val global: dynamic = js("globalThis")
+    global.__setFlag = { value: Boolean -> flag.value = value }
 
-    // The host's half of the contract, matching the names
-    // runtime/src/commonCpp/quickjs_runtime.cpp looks up: the engine injects __fh_* and calls back
-    // through these. The guest never drives its own frames — the host decides when one happens,
-    // which is what keeps an idle screen silent.
-    g.__runtime_sendFrame = { nanos: Double -> GuestRuntime.frame(nanos.toLong()) }
-    g.__runtime_onEvent = { nodeId: Int, keyId: Int -> dispatchEvent(nodeId, keyId) }
-
-    // Test-only: poke the one piece of state a screen can read.
-    g.__setFlag = { value: Boolean -> flag.value = value }
-
-    // The guest composes its own root as it loads — the host evaluates the bundle and calls nothing
-    // afterwards. `__screen`, if the embedder set it before loading, picks which of the screens
-    // above to mount; that is how the test harness chooses one.
-    val requested = if (jsTypeOf(g.__screen) == "string") g.__screen as String else "layout"
-    val screen = screens[requested] ?: throw IllegalArgumentException("unknown screen: $requested")
-    GuestRuntime.start(screen)
+    val requested = if (jsTypeOf(global.__screen) == "string") global.__screen as String else "layout"
+    setContent(screens[requested] ?: throw IllegalArgumentException("unknown screen: $requested"))
 }
